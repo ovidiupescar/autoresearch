@@ -1,91 +1,143 @@
-# autoresearch
+# Business Research Autoresearch
 
-![teaser](progress.png)
+An autonomous AI research agent that iteratively improves business research documents using the [autoresearch](https://github.com/karpathy/autoresearch) pattern. Instead of optimizing ML training code, it optimizes **business research** through cycles of web research, structured evaluation, and self-critique.
 
-*One day, frontier AI research used to be done by meat computers in between eating, sleeping, having other fun, and synchronizing once in a while using sound wave interconnect in the ritual of "group meeting". That era is long gone. Research is now entirely the domain of autonomous swarms of AI agents running across compute cluster megastructures in the skies. The agents claim that we are now in the 10,205th generation of the code base, in any case no one could tell if that's right or wrong as the "code" is now a self-modifying binary that has grown beyond human comprehension. This repo is the story of how it all began. -@karpathy, March 2026*.
+You describe a business idea or market question. The agent runs 8-25 research cycles autonomously -- searching the web, filling in specifics, evaluating against fixed criteria, keeping improvements and discarding regressions -- and delivers a research document backed by real data.
 
-The idea: give an AI agent a small but real LLM training setup and let it experiment autonomously overnight. It modifies the code, trains for 5 minutes, checks if the result improved, keeps or discards, and repeats. You wake up in the morning to a log of experiments and (hopefully) a better model. The training code here is a simplified single-GPU implementation of [nanochat](https://github.com/karpathy/nanochat). The core idea is that you're not touching any of the Python files like you normally would as a researcher. Instead, you are programming the `program.md` Markdown files that provide context to the AI agents and set up your autonomous research org. The default `program.md` in this repo is intentionally kept as a bare bones baseline, though it's obvious how one would iterate on it over time to find the "research org code" that achieves the fastest research progress, how you'd add more agents to the mix, etc. A bit more context on this project is here in this [tweet](https://x.com/karpathy/status/2029701092347630069) and [this tweet](https://x.com/karpathy/status/2031135152349524125).
+## How It Works
 
-## How it works
+The autoresearch pattern, originally by Andrej Karpathy for ML experiments, follows a simple loop:
 
-The repo is deliberately kept small and only really has three files that matter:
+```
+propose change -> execute -> evaluate -> keep or discard -> repeat
+```
 
-- **`prepare.py`** — fixed constants, one-time data prep (downloads training data, trains a BPE tokenizer), and runtime utilities (dataloader, evaluation). Not modified.
-- **`train.py`** — the single file the agent edits. Contains the full GPT model, optimizer (Muon + AdamW), and training loop. Everything is fair game: architecture, hyperparameters, optimizer, batch size, etc. **This file is edited and iterated on by the agent**.
-- **`program.md`** — baseline instructions for one agent. Point your agent here and let it go. **This file is edited and iterated on by the human**.
+This skill adapts that loop from code optimization to research optimization:
 
-By design, training runs for a **fixed 5-minute time budget** (wall clock, excluding startup/compilation), regardless of the details of your compute. The metric is **val_bpb** (validation bits per byte) — lower is better, and vocab-size-independent so architectural changes are fairly compared.
+| Karpathy's Autoresearch | Business Research Skill |
+|-------------------------|------------------------|
+| `program.md` (agent instructions) | `skill/SKILL.md` (the skill file) |
+| `train.py` (code being optimized) | `.research/document.md` (research doc being improved) |
+| `prepare.py` (fixed evaluation) | Binary eval criteria (specificity, source grounding, etc.) |
+| `val_bpb` (single metric) | Score out of N (sections x criteria) |
+| `results.tsv` (experiment log) | `.research/results.jsonl` (cycle log) |
+| Git branch (keep/revert) | `best_document.md` (keep/revert) |
 
-If you are new to neural networks, this ["Dummy's Guide"](https://x.com/hooeem/status/2030720614752039185) looks pretty good for a lot more context.
+### The Research Loop
 
-## Quick start
+Each cycle, the agent:
 
-**Requirements:** A single NVIDIA GPU (tested on H100), Python 3.10+, [uv](https://docs.astral.sh/uv/).
+1. **Picks a mutation operator** -- Web Research, Deepen Section, Add Evidence, Challenge & Strengthen, Restructure, or Synthesize
+2. **Executes the action** -- searches the web for real data, rewrites a weak section, adds specifics
+3. **Evaluates strictly** -- scores every section against every criterion (specificity, source grounding, internal consistency, plus type-specific criteria)
+4. **Keeps or discards** -- if the score improved, keep; if not, revert to the best known version
+5. **Logs everything** -- full cycle details appended to `results.jsonl`
+
+The key insight from autoresearch: **strict evaluation + keep/discard gating** prevents the document from degrading. Every version is at least as good as the previous best.
+
+## Research Types
+
+| Type | Use When | Sections |
+|------|----------|----------|
+| `idea_validation` | "Is there a market for X?" | Problem, Solutions, Customer, Market Size, Revenue, Risks, Verdict |
+| `market_analysis` | "How big is the X market?" | Definition, Size, Players, Segments, Trends, Barriers, Opportunities |
+| `business_plan` | "Business plan for X" | Executive Summary, Problem, Market, Model, GTM, Competition, Financials |
+| `competitive_analysis` | "Compare X vs Y vs Z" | Context, Profiles, Feature Matrix, Positioning, Sentiment, Gaps |
+| `opportunity_scan` | "What businesses could work in X?" | Domain, Trends, Opportunity List, Scoring, Deep Dives, Next Steps |
+
+## Installation
+
+### Claude Code
 
 ```bash
-
-# 1. Install uv project manager (if you don't already have it)
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# 2. Install dependencies
-uv sync
-
-# 3. Download data and train tokenizer (one-time, ~2 min)
-uv run prepare.py
-
-# 4. Manually run a single training experiment (~5 min)
-uv run train.py
+# Copy the skill to your Claude skills directory
+mkdir -p ~/.claude/skills/business-research
+cp skill/SKILL.md ~/.claude/skills/business-research/SKILL.md
 ```
 
-If the above commands all work ok, your setup is working and you can go into autonomous research mode.
+### Cursor
 
-## Running the agent
-
-Simply spin up your Claude/Codex or whatever you want in this repo (and disable all permissions), then you can prompt something like:
-
-```
-Hi have a look at program.md and let's kick off a new experiment! let's do the setup first.
+```bash
+# Copy the skill to your Cursor skills directory
+mkdir -p ~/.cursor/skills/business-research
+cp skill/SKILL.md ~/.cursor/skills/business-research/SKILL.md
 ```
 
-The `program.md` file is essentially a super lightweight "skill".
+### Verify installation
 
-## Project structure
+In Claude Code, the skill should appear when you run `/business-research` or when you ask to "research a business idea."
+
+## Usage
+
+### Quick start
 
 ```
-prepare.py      — constants, data prep + runtime utilities (do not modify)
-train.py        — model, optimizer, training loop (agent modifies this)
-program.md      — agent instructions
-pyproject.toml  — dependencies
+> /business-research
+
+# Or just describe what you want:
+> Research whether there's a market for AI-powered home energy management
+> Write a business plan for a B2B SaaS that helps restaurants reduce food waste
+> Compare Stripe vs Square vs Adyen for a marketplace startup
 ```
 
-## Design choices
+### Depth levels
 
-- **Single file to modify.** The agent only touches `train.py`. This keeps the scope manageable and diffs reviewable.
-- **Fixed time budget.** Training always runs for exactly 5 minutes, regardless of your specific platform. This means you can expect approx 12 experiments/hour and approx 100 experiments while you sleep. There are two upsides of this design decision. First, this makes experiments directly comparable regardless of what the agent changes (model size, batch size, architecture, etc). Second, this means that autoresearch will find the most optimal model for your platform in that time budget. The downside is that your runs (and results) become not comparable to other people running on other compute platforms.
-- **Self-contained.** No external dependencies beyond PyTorch and a few small packages. No distributed training, no complex configs. One GPU, one file, one metric.
+- **quick** (3-5 cycles) -- fast sanity check, light web research
+- **standard** (8-12 cycles) -- default, solid research with real data
+- **deep** (15-25 cycles) -- thorough analysis, extensive web research
 
-## Platform support
+### What you get
 
-This code currently requires that you have a single NVIDIA GPU. In principle it is quite possible to support CPU, MPS and other platforms but this would also bloat the code. I'm not 100% sure that I want to take this on personally right now. People can reference (or have their agents reference) the full/parent nanochat repository that has wider platform support and shows the various solutions (e.g. a Flash Attention 3 kernels fallback implementation, generic device support, autodetection, etc.), feel free to create forks or discussions for other platforms and I'm happy to link to them here in the README in some new notable forks section or etc.
+After the run completes, you'll find in `.research/`:
 
-Seeing as there seems to be a lot of interest in tinkering with autoresearch on much smaller compute platforms than an H100, a few extra words. If you're going to try running autoresearch on smaller computers (Macbooks etc.), I'd recommend one of the forks below. On top of this, here are some recommendations for how to tune the defaults for much smaller models for aspiring forks:
+| File | Contents |
+|------|----------|
+| `best_document.md` | The final research document (your deliverable) |
+| `document.md` | Working copy (same as best after completion) |
+| `state.json` | Run metadata, scores, cycle counts |
+| `results.jsonl` | Full log of every cycle with scores and descriptions |
 
-1. To get half-decent results I'd use a dataset with a lot less entropy, e.g. this [TinyStories dataset](https://huggingface.co/datasets/karpathy/tinystories-gpt4-clean). These are GPT-4 generated short stories. Because the data is a lot narrower in scope, you will see reasonable results with a lot smaller models (if you try to sample from them after training).
-2. You might experiment with decreasing `vocab_size`, e.g. from 8192 down to 4096, 2048, 1024, or even - simply byte-level tokenizer with 256 possibly bytes after utf-8 encoding.
-3. In `prepare.py`, you'll want to lower `MAX_SEQ_LEN` a lot, depending on the computer even down to 256 etc. As you lower `MAX_SEQ_LEN`, you may want to experiment with increasing `DEVICE_BATCH_SIZE` in `train.py` slightly to compensate. The number of tokens per fwd/bwd pass is the product of these two.
-4. Also in `prepare.py`, you'll want to decrease `EVAL_TOKENS` so that your validation loss is evaluated on a lot less data.
-5. In `train.py`, the primary single knob that controls model complexity is the `DEPTH` (default 8, here). A lot of variables are just functions of this, so e.g. lower it down to e.g. 4.
-6. You'll want to most likely use `WINDOW_PATTERN` of just "L", because "SSSL" uses alternating banded attention pattern that may be very inefficient for you. Try it.
-7. You'll want to lower `TOTAL_BATCH_SIZE` a lot, but keep it powers of 2, e.g. down to `2**14` (~16K) or so even, hard to tell.
+The agent also prints a summary with:
+- Score progression (starting -> final)
+- Which cycles contributed the most improvement
+- Which mutation operators were most effective
+- Weakest remaining sections
+- Suggested next steps for further research
 
-I think these would be the reasonable hyperparameters to play with. Ask your favorite coding agent for help and copy paste them this guide, as well as the full source code.
+## How Evaluation Works
 
-## Notable forks
+Every section is scored against binary criteria. A section either passes or fails each criterion -- no partial credit.
 
-- [miolini/autoresearch-macos](https://github.com/miolini/autoresearch-macos) (MacOS)
-- [trevin-creator/autoresearch-mlx](https://github.com/trevin-creator/autoresearch-mlx) (MacOS)
-- [jsegov/autoresearch-win-rtx](https://github.com/jsegov/autoresearch-win-rtx) (Windows)
-- [andyluo7/autoresearch](https://github.com/andyluo7/autoresearch) (AMD)
+**Universal criteria** (always applied):
+- **Specificity**: Contains specific facts, numbers, or named entities?
+- **Source grounding**: Claims backed by identifiable evidence?
+- **Internal consistency**: No contradictions with other sections?
+
+**Type-specific criteria** (selected based on research type):
+- Customer clarity, risk honesty, revenue plausibility (idea validation)
+- Quantification, player specificity, trend evidence (market analysis)
+- Unit economics, actionability, assumption transparency (business plan)
+- Fair comparison, evidence-based strengths, actionable gaps (competitive)
+- Breadth, scoring consistency, feasibility realism (opportunity scan)
+
+The strict grading is intentional. From the autoresearch pattern: generous self-grading defeats the optimization loop. Vague claims always fail Specificity. Uncited assertions always fail Source Grounding.
+
+## Design Principles
+
+Borrowed from Karpathy's autoresearch and adapted:
+
+1. **One mutation per cycle.** Small, testable changes. Don't rewrite everything at once.
+2. **Always work from the best known version.** Never iterate on a failed attempt.
+3. **Strict evaluation.** If in doubt, fail it. The loop recovers from false negatives but not false positives.
+4. **Web research is the primary value-add.** The user can write vague text themselves. The agent's job is finding specific facts and evidence.
+5. **Log everything.** The `.research/results.jsonl` file is the experiment history.
+6. **Run autonomously.** No mid-loop questions. The human starts it and comes back to results.
+7. **Simplicity wins ties.** If two versions score equally, keep the shorter one.
+
+## Inspired By
+
+- [karpathy/autoresearch](https://github.com/karpathy/autoresearch) -- the original ML autoresearch pattern
+- [balukosuri/Andrej-Karpathy-s-Autoresearch-As-a-Universal-Skill](https://github.com/balukosuri/Andrej-Karpathy-s-Autoresearch-As-a-Universal-Skill) -- adapting autoresearch to a universal prompt optimization skill
 
 ## License
 
