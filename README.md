@@ -1,143 +1,104 @@
-# Business Research Autoresearch
+# Business Research Pipeline — Claude Code Skill
 
-An autonomous AI research agent that iteratively improves business research documents using the [autoresearch](https://github.com/karpathy/autoresearch) pattern. Instead of optimizing ML training code, it optimizes **business research** through cycles of web research, structured evaluation, and self-critique.
+An autonomous multi-phase research pipeline for business ideas, market analysis, and business plans. Built as a Claude Code skill using the [autoresearch](https://github.com/karpathy/autoresearch) iterative improvement pattern, enhanced with ideas from [AutoResearchClaw](https://github.com/aiming-lab/AutoResearchClaw) and [Universal Autoresearch Skill](https://github.com/balukosuri/Andrej-Karpathy-s-Autoresearch-As-a-Universal-Skill).
 
-You describe a business idea or market question. The agent runs 8-25 research cycles autonomously -- searching the web, filling in specifics, evaluating against fixed criteria, keeping improvements and discarding regressions -- and delivers a research document backed by real data.
+## What it does
 
-## How It Works
+You give it a business topic. It runs an autonomous research pipeline — scoping hypotheses, searching the web for real data, filling in a structured document, scoring itself strictly, keeping improvements and discarding regressions, making PROCEED/REFINE/PIVOT decisions — then delivers a research document backed by specific facts, numbers, and named sources.
 
-The autoresearch pattern, originally by Andrej Karpathy for ML experiments, follows a simple loop:
+## How it works
+
+**4-phase pipeline:**
 
 ```
-propose change -> execute -> evaluate -> keep or discard -> repeat
+Phase 1: SCOPING         Phase 2: RESEARCH LOOP       Phase 3: SYNTHESIS    Phase 4: DELIVERY
+─────────────────         ──────────────────────       ─────────────────     ─────────────────
+• Load past lessons       • Pick weakest area          • Cross-section       • Summary stats
+• Generate hypotheses     • Choose mutation operator      coherence check    • Final document
+• Create workspace        • Execute (web search,       • Source audit        • Extract lessons
+• Set eval criteria         deepen, challenge...)      • Hypothesis          • Next steps
+• Select validation       • Strict evaluation            reconciliation
+  anchors                 • Red Team pass
+• Baseline score          • KEEP or DISCARD
+                          • Every 5 cycles:
+                            PROCEED / REFINE / PIVOT
+                          • Plateau detection
 ```
 
-This skill adapts that loop from code optimization to research optimization:
+### What we took from each source
 
-| Karpathy's Autoresearch | Business Research Skill |
-|-------------------------|------------------------|
-| `program.md` (agent instructions) | `skill/SKILL.md` (the skill file) |
-| `train.py` (code being optimized) | `.research/document.md` (research doc being improved) |
-| `prepare.py` (fixed evaluation) | Binary eval criteria (specificity, source grounding, etc.) |
-| `val_bpb` (single metric) | Score out of N (sections x criteria) |
-| `results.tsv` (experiment log) | `.research/results.jsonl` (cycle log) |
-| Git branch (keep/revert) | `best_document.md` (keep/revert) |
-
-### The Research Loop
-
-Each cycle, the agent:
-
-1. **Picks a mutation operator** -- Web Research, Deepen Section, Add Evidence, Challenge & Strengthen, Restructure, or Synthesize
-2. **Executes the action** -- searches the web for real data, rewrites a weak section, adds specifics
-3. **Evaluates strictly** -- scores every section against every criterion (specificity, source grounding, internal consistency, plus type-specific criteria)
-4. **Keeps or discards** -- if the score improved, keep; if not, revert to the best known version
-5. **Logs everything** -- full cycle details appended to `results.jsonl`
-
-The key insight from autoresearch: **strict evaluation + keep/discard gating** prevents the document from degrading. Every version is at least as good as the previous best.
-
-## Research Types
-
-| Type | Use When | Sections |
-|------|----------|----------|
-| `idea_validation` | "Is there a market for X?" | Problem, Solutions, Customer, Market Size, Revenue, Risks, Verdict |
-| `market_analysis` | "How big is the X market?" | Definition, Size, Players, Segments, Trends, Barriers, Opportunities |
-| `business_plan` | "Business plan for X" | Executive Summary, Problem, Market, Model, GTM, Competition, Financials |
-| `competitive_analysis` | "Compare X vs Y vs Z" | Context, Profiles, Feature Matrix, Positioning, Sentiment, Gaps |
-| `opportunity_scan` | "What businesses could work in X?" | Domain, Trends, Opportunity List, Scoring, Deep Dives, Next Steps |
-
-## Installation
-
-### Claude Code
-
-```bash
-# Copy the skill to your Claude skills directory
-mkdir -p ~/.claude/skills/business-research
-cp skill/SKILL.md ~/.claude/skills/business-research/SKILL.md
-```
-
-### Cursor
-
-```bash
-# Copy the skill to your Cursor skills directory
-mkdir -p ~/.cursor/skills/business-research
-cp skill/SKILL.md ~/.cursor/skills/business-research/SKILL.md
-```
-
-### Verify installation
-
-In Claude Code, the skill should appear when you run `/business-research` or when you ask to "research a business idea."
+| Source | What we borrowed |
+|--------|-----------------|
+| **Karpathy's autoresearch** | Core loop: mutate → evaluate → keep/discard. Strict binary grading. One change per cycle. Simplicity wins ties. |
+| **AutoResearchClaw** | Phased pipeline instead of flat loop. PROCEED/REFINE/PIVOT decisions. Cross-run learning. Quality gates. Multi-perspective critique. |
+| **Universal Autoresearch Skill** | Confidence-based acceptance (beat best by >1). Validation anchors. Criteria health checks. Per-operator effectiveness tracking. |
 
 ## Usage
 
-### Quick start
-
 ```
-> /business-research
-
-# Or just describe what you want:
-> Research whether there's a market for AI-powered home energy management
-> Write a business plan for a B2B SaaS that helps restaurants reduce food waste
-> Compare Stripe vs Square vs Adyen for a marketplace startup
+/business-research
 ```
 
-### Depth levels
+Or with a topic:
 
-- **quick** (3-5 cycles) -- fast sanity check, light web research
-- **standard** (8-12 cycles) -- default, solid research with real data
-- **deep** (15-25 cycles) -- thorough analysis, extensive web research
+```
+/business-research Is there a market for AI-powered inventory management for small restaurants?
+```
 
-### What you get
+## Research types
 
-After the run completes, you'll find in `.research/`:
-
-| File | Contents |
+| Type | Best for |
 |------|----------|
-| `best_document.md` | The final research document (your deliverable) |
-| `document.md` | Working copy (same as best after completion) |
-| `state.json` | Run metadata, scores, cycle counts |
-| `results.jsonl` | Full log of every cycle with scores and descriptions |
+| `idea_validation` | "Should I build this?" — problem, solution, customer, market, risks, verdict |
+| `market_analysis` | "How big is this market?" — size, growth, players, trends, barriers, opportunities |
+| `business_plan` | "How would this work?" — model, unit economics, GTM, financials, risks |
+| `competitive_analysis` | "Who else does this?" — profiles, features, pricing, gaps, positioning |
+| `opportunity_scan` | "Where are the opportunities?" — trends, scored opportunity list, deep dives |
 
-The agent also prints a summary with:
-- Score progression (starting -> final)
-- Which cycles contributed the most improvement
-- Which mutation operators were most effective
-- Weakest remaining sections
-- Suggested next steps for further research
+## Depth settings
 
-## How Evaluation Works
+| Depth | Cycles | Use when |
+|-------|--------|----------|
+| `quick` | 3-5 | Fast sanity check, initial signal |
+| `standard` | 8-12 | Solid research with real data (default) |
+| `deep` | 15-25 | Thorough analysis for important decisions |
 
-Every section is scored against binary criteria. A section either passes or fails each criterion -- no partial credit.
+## Output
 
-**Universal criteria** (always applied):
-- **Specificity**: Contains specific facts, numbers, or named entities?
-- **Source grounding**: Claims backed by identifiable evidence?
-- **Internal consistency**: No contradictions with other sections?
+All artifacts in `.research/`:
 
-**Type-specific criteria** (selected based on research type):
-- Customer clarity, risk honesty, revenue plausibility (idea validation)
-- Quantification, player specificity, trend evidence (market analysis)
-- Unit economics, actionability, assumption transparency (business plan)
-- Fair comparison, evidence-based strengths, actionable gaps (competitive)
-- Breadth, scoring consistency, feasibility realism (opportunity scan)
+| File | Purpose |
+|------|---------|
+| `best_document.md` | Final research document (the deliverable) |
+| `document.md` | Working copy (may differ from best if last cycle was discarded) |
+| `state.json` | Full state: hypotheses, scores, operator stats, decisions |
+| `results.jsonl` | Every cycle logged: score, operator, description, keep/discard |
+| `lessons.jsonl` | Cross-run learning — persists across research sessions |
 
-The strict grading is intentional. From the autoresearch pattern: generous self-grading defeats the optimization loop. Vague claims always fail Specificity. Uncited assertions always fail Source Grounding.
+## Key features
 
-## Design Principles
+- **Testable hypotheses**: Generates 3-5 specific claims upfront, tracks them as supported/refuted/inconclusive
+- **8 mutation operators**: Web Research, Deepen, Add Evidence, Challenge, Restructure, Synthesize, Perspective Shift, Plateau Break
+- **Red Team pass**: Adversarial re-evaluation of weakest sections every cycle
+- **PROCEED/REFINE/PIVOT**: Autonomous strategic decisions every 5 cycles
+- **Quality gates** (optional): Pause mid-run for human review in `gated` mode
+- **Cross-run learning**: Lessons from past runs loaded at start, new lessons saved at end
+- **Validation anchors**: Fixed sections in every eval to prevent score drift
+- **Criteria health**: Flags too-easy or too-hard criteria at cycle 10
+- **Confidence margin**: Must beat best by >1 point to KEEP (reduces noise)
+- **Operator tracking**: Per-operator keep rate drives smarter operator selection
 
-Borrowed from Karpathy's autoresearch and adapted:
+## Installation
 
-1. **One mutation per cycle.** Small, testable changes. Don't rewrite everything at once.
-2. **Always work from the best known version.** Never iterate on a failed attempt.
-3. **Strict evaluation.** If in doubt, fail it. The loop recovers from false negatives but not false positives.
-4. **Web research is the primary value-add.** The user can write vague text themselves. The agent's job is finding specific facts and evidence.
-5. **Log everything.** The `.research/results.jsonl` file is the experiment history.
-6. **Run autonomously.** No mid-loop questions. The human starts it and comes back to results.
-7. **Simplicity wins ties.** If two versions score equally, keep the shorter one.
+The skill is a single file: `skill/SKILL.md`. Copy it to your Claude Code skills directory, or use this repo directly as your research workspace.
 
-## Inspired By
+No dependencies beyond Claude Code and its built-in WebSearch/WebFetch tools.
 
-- [karpathy/autoresearch](https://github.com/karpathy/autoresearch) -- the original ML autoresearch pattern
-- [balukosuri/Andrej-Karpathy-s-Autoresearch-As-a-Universal-Skill](https://github.com/balukosuri/Andrej-Karpathy-s-Autoresearch-As-a-Universal-Skill) -- adapting autoresearch to a universal prompt optimization skill
+## Inspired by
+
+- [karpathy/autoresearch](https://github.com/karpathy/autoresearch) — the original ML autoresearch pattern
+- [aiming-lab/AutoResearchClaw](https://github.com/aiming-lab/AutoResearchClaw) — 23-stage autonomous academic research pipeline
+- [balukosuri/Universal Autoresearch Skill](https://github.com/balukosuri/Andrej-Karpathy-s-Autoresearch-As-a-Universal-Skill) — adapting autoresearch to universal prompt optimization
 
 ## License
 
