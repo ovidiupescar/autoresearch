@@ -100,8 +100,11 @@ Named competitors, their positioning, strengths, weaknesses, and pricing. Featur
 ## 8. Key Risks & Assumptions
 What could kill this idea? What assumptions must hold true? Rate each risk: likelihood (H/M/L) x impact (H/M/L).
 
-## 9. Verdict & Hypotheses Status
-Based on evidence gathered: pursue, pivot, or pass? Status of each initial hypothesis.
+## 9. What We Ruled Out
+Ideas, assumptions, or directions that were investigated and rejected. For each: what we thought, what the evidence showed, and why it doesn't work. A refuted hypothesis is not a failure — it's knowledge.
+
+## 10. Verdict
+Based on evidence gathered: pursue, pivot, or pass? Reference specific findings. Status of each initial hypothesis (supported / refuted / inconclusive / untested).
 ```
 
 For `market_analysis`:
@@ -135,8 +138,11 @@ Gaps in current offerings. Underserved segments. Emerging niches.
 ## 9. Threats & Disruption Risks
 What could shrink or transform this market? Timeline estimates.
 
-## 10. Hypotheses Status
-Status of each initial hypothesis based on evidence gathered.
+## 10. What We Ruled Out
+Segments, trends, or assumptions that were investigated and rejected. What the evidence showed and why it matters.
+
+## 11. Hypotheses Status
+Status of each initial hypothesis (supported / refuted / inconclusive / untested) with key evidence.
 ```
 
 For `business_plan`:
@@ -170,11 +176,14 @@ Year 1-3: revenue, costs, headcount, burn rate. Key assumptions listed explicitl
 ## 9. Risks, Assumptions & Mitigations
 Top 5-7 risks ranked by likelihood x impact. Specific mitigation for each.
 
-## 10. Ask & Next Steps
+## 10. What We Ruled Out
+Revenue models, channels, markets, or assumptions that were investigated and rejected. What the evidence showed. Why they don't work.
+
+## 11. Ask & Next Steps
 What resources are needed? What are the immediate next 3 actions?
 
-## 11. Hypotheses Status
-Status of each initial hypothesis based on evidence gathered.
+## 12. Hypotheses Status
+Status of each initial hypothesis (supported / refuted / inconclusive / untested) with key evidence.
 ```
 
 For `competitive_analysis`:
@@ -205,8 +214,11 @@ What is nobody doing well? Where is the whitespace? Underserved buyer segments.
 ## 8. Competitive Advantages Needed
 What would it take to win? Table stakes vs. differentiators.
 
-## 9. Hypotheses Status
-Status of each initial hypothesis based on evidence gathered.
+## 9. What We Ruled Out
+Competitors, strategies, or market assumptions that were investigated and rejected. What the evidence showed.
+
+## 10. Hypotheses Status
+Status of each initial hypothesis (supported / refuted / inconclusive / untested) with key evidence.
 ```
 
 For `opportunity_scan`:
@@ -228,14 +240,14 @@ Rate each: market size (1-5), feasibility (1-5), competition intensity (1-5 wher
 ## 5. Top 3 Deep Dives
 Expand the three highest-scoring opportunities with more detail.
 
-## 6. Kill List
-Opportunities that looked good but don't survive scrutiny. Why not.
+## 6. What We Ruled Out (Kill List)
+Opportunities that looked promising but don't survive scrutiny. For each: what seemed attractive, what the evidence showed, and the specific reason it fails. These are valuable — they save someone else from pursuing dead ends.
 
 ## 7. Recommended Next Steps
 For each top opportunity: specific research, validation experiments, and first actions.
 
 ## 8. Hypotheses Status
-Status of each initial hypothesis based on evidence gathered.
+Status of each initial hypothesis (supported / refuted / inconclusive / untested) with key evidence.
 ```
 
 **`.research/state.json`** — Full loop state:
@@ -279,11 +291,12 @@ Status of each initial hypothesis based on evidence gathered.
 
 Generate **binary (yes/no) evaluation criteria**. 4-6 criteria total. Fewer = less noise.
 
-**Universal criteria (always include all 3)**:
+**Universal criteria (always include all 4)**:
 
 1. **Specificity**: Does the section contain specific facts, numbers, or named entities — not vague claims?
 2. **Source grounding**: Are claims backed by identifiable evidence (data points, named companies, cited trends with dates)?
 3. **Internal consistency**: Do the sections support each other without contradiction?
+4. **Negative results honesty**: Does the "What We Ruled Out" section contain substantive, evidence-backed rejections — not just filler? (For other sections: does the section acknowledge limitations or counter-evidence where relevant?)
 
 **Type-specific criteria (pick 2-3)**:
 
@@ -674,3 +687,4 @@ Based on weakest sections, untested hypotheses, and flagged assumptions, suggest
 13. **PIVOT is not failure.** Discovering that an idea doesn't work IS a valuable research output. Document WHY it doesn't work.
 14. **Never fabricate sources.** If you can't find data, say so. "No reliable data found" is better than a made-up statistic.
 15. **Confidence margin on KEEP.** New version must beat best by >1 point to be kept (except on ties where shorter wins). This prevents noise-driven false improvements.
+16. **Negative results are first-class outputs.** A well-documented refuted hypothesis is MORE valuable than a vaguely supported one. "We investigated X and it doesn't work because Y" saves real time and money. The "What We Ruled Out" section should be one of the strongest in the document by the end.
