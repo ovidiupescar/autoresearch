@@ -53,6 +53,10 @@ Proceed? (y/n)
 
 Check if `.research/lessons.jsonl` exists from previous runs. If it does, read it and incorporate relevant lessons into this run's strategy. Lessons are warnings and insights from past failures (e.g., "Market size claims for [domain] are unreliable without specifying geography" or "Competitor pricing changes rapidly — always include date of data").
 
+**Lesson decay** (inspired by Engram's Ebbinghaus forgetting): Weight lessons by recency. Lessons from the last run get full weight. Lessons older than 5 runs get half weight. Lessons older than 20 runs are ignored (but kept in the file for auditing). This prevents stale lessons from a different domain from polluting current research.
+
+Each lesson entry should include `"run_number"` to enable this decay. Increment a global run counter stored at the top of `lessons.jsonl`.
+
 ### 1b. Generate initial hypotheses
 
 Based on the topic, generate 3-5 **testable hypotheses** — specific claims that the research will attempt to confirm or refute. These give direction to the research cycles.
@@ -276,6 +280,13 @@ Status of each initial hypothesis (supported / refuted / inconclusive / untested
   "criteria_health": {},
   "validation_sections": [],
   "operator_stats": {},
+  "operator_weights": {
+    "Web Research": 1.0, "Deepen Section": 1.0, "Add Evidence": 1.0,
+    "Challenge & Strengthen": 1.0, "Restructure": 1.0, "Synthesize": 1.0,
+    "Perspective Shift": 1.0, "Plateau Break": 1.0
+  },
+  "action_catalog": [],
+  "next_cycle_hint": null,
   "lessons_loaded": [],
   "decisions": []
 }
@@ -327,7 +338,26 @@ For `opportunity_scan`:
 
 Store criteria in `state.json`. Set `max_score` = (number of sections) x (number of criteria).
 
-### 1e. Select validation anchors
+**One-sentence clarity test**: Every criterion must be explainable in one sentence to a stranger who could grade outputs without additional context. If you can't, rewrite it. (Inspired by the Autoresearch 101 Playbook.)
+
+### 1e. Generate action catalog
+
+Before the loop starts, generate a ranked **action catalog** — a prioritized list of high-impact mutations specific to this research topic. Each entry estimates the score impact.
+
+Example for "AI-powered resume screening for SMBs":
+```
+Action Catalog (estimated impact):
+1. Find actual market size data for HR tech / SMB recruiting (+3-5 pts)
+2. Identify and profile 3-5 direct competitors with pricing (+3-4 pts)
+3. Find SMB HR manager survey data on pain points (+2-3 pts)
+4. Calculate unit economics from comparable SaaS benchmarks (+2-3 pts)
+5. Find customer reviews/complaints about existing ATS tools (+2 pts)
+6. Research regulatory requirements for AI in hiring (+1-2 pts)
+```
+
+Store in `state.json` under `"action_catalog"`. The agent should prioritize catalog items before falling back to generic operators. Mark items as `done` after execution.
+
+### 1f. Select validation anchors
 
 Pick 2-3 sections as **validation anchors** — these appear in every evaluation cycle to detect score drift. Store in `state.json` under `"validation_sections"`. Choose sections that are central to the research (e.g., "Market Size", "Competitive Landscape", "Revenue Model").
 
@@ -371,11 +401,12 @@ Before choosing an action, compute per-section scores from the last evaluation. 
 #### Step 3: Pick a research action
 
 Choose ONE mutation operator. Selection priority:
-1. If an untested hypothesis can be addressed → **Web Research** targeting that hypothesis
-2. If weakest section fails on Source Grounding → **Web Research** for that section
-3. If weakest section fails on Specificity → **Add Evidence**
-4. If `plateau_counter >= 5` → **Plateau Break** (see below)
-5. Otherwise → choose the operator with the best historical keep rate
+1. If an uncompleted action catalog item matches a weakness → execute that catalog item
+2. If an untested hypothesis can be addressed → **Web Research** targeting that hypothesis
+3. If weakest section fails on Source Grounding → **Web Research** for that section
+4. If weakest section fails on Specificity → **Add Evidence**
+5. If `plateau_counter >= 5` → **Plateau Break** (see below)
+6. Otherwise → choose the operator with the **highest Darwinian weight** (see below)
 
 Never repeat the same operator more than 2 consecutive times.
 
@@ -389,6 +420,18 @@ Never repeat the same operator more than 2 consecutive times.
 | **Synthesize** | Connect insights across sections. Ensure verdict follows from evidence. | Late cycles when sections are individually strong but disconnected |
 | **Perspective Shift** | Re-examine a section from a different stakeholder's viewpoint (investor, customer, competitor, regulator). | After 3+ cycles of same-perspective improvement |
 | **Plateau Break** | Complete rewrite of the weakest section from scratch, keeping only sourced facts. | `plateau_counter >= 5` |
+
+**Darwinian operator weights** (inspired by ATLAS trading system):
+
+Each operator starts with weight 1.0. After each cycle:
+- If KEEP: operator weight × 1.05
+- If DISCARD: operator weight × 0.95
+- Minimum weight: 0.3 (never fully eliminated)
+- Maximum weight: 2.5
+
+When selecting by weight (priority rule 6), choose the highest-weight operator that hasn't been used in the last 2 cycles. Store weights in `state.json` → `"operator_weights"`.
+
+This creates natural selection: operators that consistently produce improvements gain influence; those that don't fade toward minimum.
 
 #### Step 4: Execute the research action
 
@@ -425,12 +468,15 @@ Score every section against every criterion. For each (section, criterion) pair:
 - Claims without named sources → fail Source Grounding
 - Numbers without dates or methodology → fail Specificity
 
-Then run a **Red Team pass**: re-read the 2 lowest-scoring sections and ask:
-- "What would an investor/buyer poke holes in?"
-- "What claim here is most likely wrong?"
-If the Red Team identifies a sourced claim that is likely wrong or misleading, subtract 1 point.
+Then run a **3-role critique** on the 2 lowest-scoring sections (inspired by Autocontext's multi-role pipeline):
 
-Compute: `total_score = sum_of_passes - red_team_deductions`
+1. **Analyst**: "What happened? Why did this section score low? What's the root cause — missing data, vague claims, or logical gaps?"
+2. **Challenger**: "What would an investor/buyer poke holes in? What claim here is most likely wrong or misleading?"
+3. **Coach**: "What's the single highest-impact fix for this section in the next cycle? Be specific."
+
+If the Challenger identifies a sourced claim that is likely wrong or misleading, subtract 1 point. Store the Coach's suggestion in `state.json` → `"next_cycle_hint"` to guide the next mutation.
+
+Compute: `total_score = sum_of_passes - challenger_deductions`
 
 Also compute `section_scores` dict and `criterion_scores` dict.
 

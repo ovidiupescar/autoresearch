@@ -1,6 +1,6 @@
-# Business Research Pipeline — Claude Code Skill
+# Autoresearch Skills for Business & Trading
 
-An autonomous multi-phase research pipeline for business ideas, market analysis, and business plans. Built as a Claude Code skill using the [autoresearch](https://github.com/karpathy/autoresearch) iterative improvement pattern, enhanced with ideas from [AutoResearchClaw](https://github.com/aiming-lab/AutoResearchClaw) and [Universal Autoresearch Skill](https://github.com/balukosuri/Andrej-Karpathy-s-Autoresearch-As-a-Universal-Skill).
+Two autonomous research pipelines built as Claude Code skills — one for **business research** and one for **trading/investment research**. Both use the [autoresearch](https://github.com/karpathy/autoresearch) iterative improvement pattern, enhanced with ideas from [AutoResearchClaw](https://github.com/aiming-lab/AutoResearchClaw), [Universal Autoresearch Skill](https://github.com/balukosuri/Andrej-Karpathy-s-Autoresearch-As-a-Universal-Skill), [ATLAS trading system](https://github.com/chrisworsey55/atlas-gic), [GOAL.md](https://github.com/jmilinovich/goal-md), [Autocontext](https://github.com/greyhaven-ai/autocontext), [Engram](https://github.com/tonitangpotato/autoresearch-engram), and [FARS](https://analemma.ai/blog/introducing-fars/).
 
 ## What it does
 
@@ -35,17 +35,22 @@ Phase 1: SCOPING         Phase 2: RESEARCH LOOP       Phase 3: SYNTHESIS    Phas
 
 ## Usage
 
+### Business research
 ```
 /business-research
-```
-
-Or with a topic:
-
-```
 /business-research Is there a market for AI-powered inventory management for small restaurants?
 ```
 
+### Trading research
+```
+/trading-research
+/trading-research Is NVDA overvalued at current levels?
+/trading-research Best semiconductor plays for 2026
+```
+
 ## Research types
+
+### Business (`/business-research`)
 
 | Type | Best for |
 |------|----------|
@@ -54,6 +59,16 @@ Or with a topic:
 | `business_plan` | "How would this work?" — model, unit economics, GTM, financials, risks |
 | `competitive_analysis` | "Who else does this?" — profiles, features, pricing, gaps, positioning |
 | `opportunity_scan` | "Where are the opportunities?" — trends, scored opportunity list, deep dives |
+
+### Trading (`/trading-research`)
+
+| Type | Best for |
+|------|----------|
+| `single_stock` | "Should I buy X?" — bull/bear case, valuation, catalysts, risk framework |
+| `sector_analysis` | "Which sector to overweight?" — drivers, players, regime sensitivity, top picks |
+| `macro_thesis` | "Will rates come down?" — thesis, evidence, contrary evidence, trade expression |
+| `strategy_eval` | "Does this strategy work?" — edge, backtests, regime analysis, capacity |
+| `comparative` | "ASML vs LRCX?" — side-by-side financials, valuation, moat, asymmetry |
 
 ## Depth settings
 
@@ -77,28 +92,45 @@ All artifacts in `.research/`:
 
 ## Key features
 
-- **Testable hypotheses**: Generates 3-5 specific claims upfront, tracks them as supported/refuted/inconclusive
+**Core engine (both skills)**:
+- **Testable hypotheses**: 3-5 specific claims generated upfront, tracked as supported/refuted/inconclusive
 - **8 mutation operators**: Web Research, Deepen, Add Evidence, Challenge, Restructure, Synthesize, Perspective Shift, Plateau Break
-- **Red Team pass**: Adversarial re-evaluation of weakest sections every cycle
+- **3-role critique**: Analyst → Challenger → Coach pipeline on weakest sections every cycle (from Autocontext)
+- **Darwinian operator weights**: Operators that produce KEEPs gain weight (×1.05), DISCARDs lose weight (×0.95) — natural selection for mutations (from ATLAS)
+- **Action catalog**: Prioritized high-impact research actions with estimated point values, executed before generic operators (from GOAL.md)
 - **PROCEED/REFINE/PIVOT**: Autonomous strategic decisions every 5 cycles
-- **Quality gates** (optional): Pause mid-run for human review in `gated` mode
-- **Cross-run learning**: Lessons from past runs loaded at start, new lessons saved at end
+- **Cross-run learning with decay**: Lessons persist across runs, weighted by recency — stale lessons fade (from Engram)
+- **Negative results as first-class output**: "What We Ruled Out" section in every template (from FARS)
+- **Confidence margin**: Must beat best by >1 point to KEEP (from Universal Autoresearch Skill)
 - **Validation anchors**: Fixed sections in every eval to prevent score drift
-- **Criteria health**: Flags too-easy or too-hard criteria at cycle 10
-- **Confidence margin**: Must beat best by >1 point to KEEP (reduces noise)
-- **Operator tracking**: Per-operator keep rate drives smarter operator selection
+- **Criteria health checks**: Flags too-easy or too-hard criteria at cycle 10
+- **Quality gates** (optional): Pause mid-run for human review in `gated` mode
+
+**Trading-specific**:
+- **Both-sides rigor**: Bull AND bear cases required with equal evidence depth
+- **Conviction calibration**: High/Medium/Low conviction tied to evidence strength
+- **Regime sensitivity**: How does the thesis perform across different macro environments?
+- **Risk framework**: Explicit stop-loss triggers, position sizing, maximum loss tolerance
+- **Date everything**: All financial data must include dates — undated metrics are flagged
+- **Investment disclaimer**: Always included, non-negotiable
 
 ## Installation
 
-The skill is a single file: `skill/SKILL.md`. Copy it to your Claude Code skills directory, or use this repo directly as your research workspace.
+Two skill files: `skill/SKILL.md` (business) and `skill/trading/SKILL.md` (trading). Copy to your Claude Code skills directory, or use this repo as your research workspace.
 
 No dependencies beyond Claude Code and its built-in WebSearch/WebFetch tools.
 
 ## Inspired by
 
 - [karpathy/autoresearch](https://github.com/karpathy/autoresearch) — the original ML autoresearch pattern
-- [aiming-lab/AutoResearchClaw](https://github.com/aiming-lab/AutoResearchClaw) — 23-stage autonomous academic research pipeline
-- [balukosuri/Universal Autoresearch Skill](https://github.com/balukosuri/Andrej-Karpathy-s-Autoresearch-As-a-Universal-Skill) — adapting autoresearch to universal prompt optimization
+- [aiming-lab/AutoResearchClaw](https://github.com/aiming-lab/AutoResearchClaw) — 23-stage autonomous academic research pipeline with PROCEED/REFINE/PIVOT
+- [balukosuri/Universal Autoresearch Skill](https://github.com/balukosuri/Andrej-Karpathy-s-Autoresearch-As-a-Universal-Skill) — confidence margin, validation anchors, criteria health
+- [chrisworsey55/atlas-gic](https://github.com/chrisworsey55/atlas-gic) — Darwinian weight system for trading agents optimized against Sharpe ratio
+- [jmilinovich/goal-md](https://github.com/jmilinovich/goal-md) — constructed fitness functions and ranked action catalogs
+- [greyhaven-ai/autocontext](https://github.com/greyhaven-ai/autocontext) — multi-role critique pipeline (Analyst→Coach→Curator)
+- [tonitangpotato/autoresearch-engram](https://github.com/tonitangpotato/autoresearch-engram) — persistent memory with Ebbinghaus forgetting decay
+- [FARS by Analemma](https://analemma.ai/blog/introducing-fars/) — negative results as first-class research outputs
+- [awesome-autoresearch](https://github.com/alvinunreal/awesome-autoresearch) — curated list that led us to many of these sources
 
 ## License
 
