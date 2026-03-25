@@ -1,6 +1,6 @@
 ---
 name: business-research
-description: Autonomous multi-phase research pipeline for business ideas, market analysis, and business plans. Combines the autoresearch iterative improvement loop with a structured phased pipeline (scope → parallel research blitz → iterative improvement → synthesize → deliver). Features parallel Sonnet research agents for broad data gathering, multi-perspective critique, PROCEED/REFINE/PIVOT decision logic, Darwinian operator selection, quality gates, cross-run learning, and validation anchors. Use when asked to research a business idea, analyze a market, write a business plan, evaluate startup ideas, or any non-technical research that benefits from iterative refinement.
+description: Autonomous multi-phase research pipeline for business ideas, market analysis, and business plans. Combines the autoresearch iterative improvement loop with a structured phased pipeline (scope → parallel research blitz → iterative improvement → synthesize → deliver). Features parallel Sonnet research agents for broad data gathering, Reddit MCP community sentiment mining, seed-from-file bootstrapping, multi-perspective critique, PROCEED/REFINE/PIVOT decision logic, Darwinian operator selection (including Reddit Deep Dive operator), quality gates, cross-run learning, and validation anchors. Use when asked to research a business idea, analyze a market, write a business plan, evaluate startup ideas, or any non-technical research that benefits from iterative refinement.
 user_invocable: true
 ---
 
@@ -30,6 +30,19 @@ From the user's answer, extract:
 | **research_type** | One of: `idea_validation`, `market_analysis`, `business_plan`, `competitive_analysis`, `opportunity_scan` |
 | **depth** | `quick` (3-5 cycles), `standard` (8-12 cycles), `deep` (15-25 cycles). Default: `standard`. |
 | **gate_mode** | `auto` (no human review mid-run) or `gated` (pause at quality gates for user review). Default: `auto`. |
+| **seed_file** | Optional path to an existing file (`.md`, `.txt`, `.pdf`) containing prior research, notes, or context to bootstrap the document. Default: `none`. |
+
+### Seed from File
+
+If the user provides a `seed_file` path (or mentions "I have notes in..." / "start from this file..." / "use this as input..."):
+
+1. **Read the file** using the Read tool (supports `.md`, `.txt`, `.pdf`)
+2. **Extract key facts** — named entities, numbers, claims, sources, structure
+3. **Pre-populate** the research document skeleton in Phase 1c with extracted content placed in the appropriate sections
+4. **Flag unverified claims** — anything from the seed file that lacks a source gets tagged `[SEED - UNVERIFIED]` so the research loop knows to prioritize finding evidence for or against these claims
+5. **Generate seed-aware hypotheses** — in Phase 1b, derive hypotheses that test the seed file's core claims rather than starting from scratch
+
+This means the iterative loop starts from a much richer baseline and spends cycles verifying and deepening rather than discovering from zero.
 
 Present the brief:
 
@@ -39,6 +52,7 @@ Research Brief:
   Type: [research_type]
   Depth: [depth] (~N research cycles)
   Gates: [auto/gated]
+  Seed: [filename or "none"]
 
 Proceed? (y/n)
 ```
@@ -283,7 +297,8 @@ Status of each initial hypothesis (supported / refuted / inconclusive / untested
   "operator_weights": {
     "Web Research": 1.0, "Deepen Section": 1.0, "Add Evidence": 1.0,
     "Challenge & Strengthen": 1.0, "Restructure": 1.0, "Synthesize": 1.0,
-    "Perspective Shift": 1.0, "Plateau Break": 1.0, "Parallel Research Blitz": 1.0
+    "Perspective Shift": 1.0, "Plateau Break": 1.0, "Parallel Research Blitz": 1.0,
+    "Reddit Deep Dive": 1.0
   },
   "parallel_blitz_count": 0,
   "parallel_blitz_max": 3,
@@ -409,7 +424,62 @@ For `opportunity_scan`:
 - **Agent C**: "Adjacent Markets" — related markets, cross-industry opportunities, emerging niches
 - **Agent D**: "Feasibility Data" — cost benchmarks, resource requirements, comparable startup trajectories
 
-**Each agent prompt MUST include**:
+**Agent E (always spawned): "Reddit & Community Sentiment"** — Uses the Reddit MCP tools to find real user opinions, complaints, wishes, and discussions about the topic. This agent provides ground-truth voice-of-customer data that web searches often miss.
+
+Agent E prompt:
+```
+You are a Reddit research agent. Your task: Find real user opinions, complaints, and discussions about [topic].
+
+TOOLS: You have access to Reddit MCP tools:
+- mcp__reddit__get_subreddit_hot_posts(subreddit_name, limit)
+- mcp__reddit__get_subreddit_top_posts(subreddit_name, time="year", limit)
+- mcp__reddit__get_subreddit_new_posts(subreddit_name, limit)
+- mcp__reddit__get_post_content(post_id, comment_limit=20, comment_depth=3)
+- mcp__reddit__get_post_comments(post_id, limit=20)
+
+STRATEGY:
+1. Identify 3-5 relevant subreddits for [topic] (e.g., for SaaS: r/SaaS, r/startups, r/smallbusiness, r/Entrepreneur; for trading: r/algotrading, r/wallstreetbets, r/investing)
+2. Search top posts (time="year") in each subreddit for keywords related to [topic]
+3. For the most relevant posts (5-10), read the post content AND comments
+4. Extract: pain points, complaints about existing solutions, feature wishes, price sensitivity signals, competitor mentions, enthusiasm/skepticism levels
+
+OUTPUT FORMAT:
+## Reddit Sentiment Summary
+
+### Subreddits Analyzed
+- r/[name] ([subscriber count if visible], relevance: [why])
+
+### Key Pain Points (from real users)
+- "[direct quote or close paraphrase]" — r/[subreddit], [upvotes] upvotes
+- ...
+
+### Complaints About Existing Solutions
+- [Product name]: "[complaint]" — r/[subreddit]
+- ...
+
+### Feature Wishes / Unmet Needs
+- "[what users want]" — r/[subreddit], [context]
+- ...
+
+### Competitor Mentions & Sentiment
+- [Competitor]: [positive/negative/mixed] — "[key quote]"
+- ...
+
+### Price Sensitivity Signals
+- "[what users say about pricing]" — r/[subreddit]
+- ...
+
+### Overall Sentiment
+[1-2 sentence summary: Is the community excited, frustrated, skeptical, or indifferent about this space?]
+
+RULES:
+- Only report what real users actually said. Do NOT fabricate quotes.
+- Include subreddit name and approximate upvote count for credibility weighting.
+- If a subreddit has no relevant posts, say so: "r/[name]: No relevant posts found"
+- Prioritize highly-upvoted comments (community-validated opinions) over low-engagement posts.
+```
+
+**Each agent (A-D) prompt MUST include**:
 ```
 You are a research agent. Your task: [specific brief above].
 Topic: [topic]
@@ -427,17 +497,18 @@ RULES:
 Return ONLY your research findings. No opinions, no recommendations. Just sourced facts.
 ```
 
-**Launch all agents in a single message** (parallel execution). Wait for all to complete.
+**Launch ALL agents (A-E) in a single message** (parallel execution). Wait for all to complete.
 
 **After all agents return**, merge their findings into `.research/document.md`:
-- For each section in the document skeleton, integrate relevant facts from the agent that covered it
-- Add inline source citations
+- For each section in the document skeleton, integrate relevant facts from agents A-D that covered it
+- **Reddit data (Agent E)**: Weave community sentiment into relevant sections — pain points into "Problem Statement", competitor complaints into "Competitive Landscape" / "Customer Sentiment", feature wishes into "Opportunities" / "White Space", price sensitivity into "Pricing" / "Revenue Model". Also create a dedicated `### Community Voice` subsection under the most relevant section with the best Reddit quotes.
+- Add inline source citations (for Reddit: `(Reddit: r/[subreddit], [upvotes] upvotes)`)
 - Do NOT try to make it polished — just get the raw data into the right sections
 - Copy the populated document to `.research/best_document.md`
 
 **Run baseline evaluation** on the now-populated document. This becomes the true cycle 0 score (will be much higher than the empty skeleton). Log:
 ```json
-{"cycle": 0, "phase": "blitz", "score": X, "max_score": Y, "description": "Initial parallel research blitz (4 Sonnet agents)", "kept": true, "agents_spawned": 4, "timestamp": "ISO-8601"}
+{"cycle": 0, "phase": "blitz", "score": X, "max_score": Y, "description": "Initial parallel research blitz (4 Sonnet web agents + 1 Sonnet Reddit agent)", "kept": true, "agents_spawned": 5, "timestamp": "ISO-8601"}
 ```
 
 Update `state.json`: set `best_score` to the blitz score.
@@ -445,8 +516,10 @@ Update `state.json`: set `best_score` to the blitz score.
 Print:
 ```
 Research Blitz complete:
-  Agents spawned: 4 (Sonnet)
+  Agents spawned: 5 (4 web research + 1 Reddit sentiment, all Sonnet)
   Sections populated: N/M
+  Reddit subreddits mined: [list]
+  Community pain points found: N
   Post-blitz score: X/Y (Z%)
   Data gaps remaining: [list sections still mostly empty]
 ```
@@ -506,6 +579,7 @@ Never repeat the same operator more than 2 consecutive times.
 | **Perspective Shift** | Re-examine a section from a different stakeholder's viewpoint (investor, customer, competitor, regulator). | After 3+ cycles of same-perspective improvement |
 | **Plateau Break** | Complete rewrite of the weakest section from scratch, keeping only sourced facts. | `plateau_counter >= 5` |
 | **Parallel Research Blitz** | Spawn 2-3 Sonnet agents to research different angles of the same weak area simultaneously. Merge results. | Multiple sections weak on Source Grounding; or after REFINE decision |
+| **Reddit Deep Dive** | Targeted Reddit research on a specific weak section. Use Reddit MCP tools to search 2-3 subreddits for posts and comments about the specific gap. Extract user quotes, pain points, product mentions, and pricing discussions. | Customer Sentiment sections weak; "Customer clarity" criterion failing; need voice-of-customer evidence for any section |
 
 **Darwinian operator weights** (inspired by ATLAS trading system):
 
@@ -541,6 +615,14 @@ Track every query in `state.json` → `"research_queries_used"` to avoid repeati
 Use the same agent prompt template from Phase 1g (search rules, source requirements, no fabrication). Launch all agents in a single message for parallel execution. After all return, merge the best findings into the target section(s). This operator counts as ONE cycle but gathers 3x the data.
 
 Track in `state.json` → `"parallel_blitz_count"` (increment each time this operator is used). Limit to **3 uses per run** — parallel blitzes are expensive. Save them for when multiple sections are data-starved or after a REFINE decision.
+
+**For Reddit Deep Dive**: Use the Reddit MCP tools directly (no agent needed — the tools are available in the main session):
+1. Identify 2-3 subreddits relevant to the weak section's topic
+2. Use `mcp__reddit__get_subreddit_top_posts(subreddit_name, time="year", limit=20)` to find relevant discussions
+3. For the 3-5 most relevant posts, use `mcp__reddit__get_post_content(post_id, comment_limit=20, comment_depth=3)` to read comments
+4. Extract: specific user quotes, pain points, product mentions, pricing discussions, feature requests
+5. Integrate findings into the weak section with citations: `(Reddit: r/[subreddit], [upvotes] upvotes)`
+6. Particularly valuable for: customer pain points, competitor complaints, price sensitivity, unmet needs, real-world usage patterns
 
 **For all operators**: Edit `.research/document.md` with improvements.
 
