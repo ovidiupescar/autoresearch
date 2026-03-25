@@ -1,6 +1,6 @@
 ---
 name: business-research
-description: Autonomous multi-phase research pipeline for business ideas, market analysis, and business plans. Combines the autoresearch iterative improvement loop with a structured phased pipeline (scope → parallel research blitz → iterative improvement → synthesize → deliver). Features parallel Sonnet research agents for broad data gathering, Reddit MCP community sentiment mining, seed-from-file bootstrapping, multi-perspective critique, PROCEED/REFINE/PIVOT decision logic, Darwinian operator selection (including Reddit Deep Dive operator), quality gates, cross-run learning, and validation anchors. Use when asked to research a business idea, analyze a market, write a business plan, evaluate startup ideas, or any non-technical research that benefits from iterative refinement.
+description: Autonomous multi-phase research pipeline for business ideas, market analysis, and business plans. Combines the autoresearch iterative improvement loop with a structured phased pipeline (social signal scan → scope → parallel research blitz → iterative improvement → synthesize → deliver). Features last30days social/prediction market scanning (Reddit, X, HN, YouTube, Polymarket, TikTok), parallel Sonnet research agents for broad data gathering, Reddit MCP community sentiment mining, seed-from-file bootstrapping, multi-perspective critique, PROCEED/REFINE/PIVOT decision logic, Darwinian operator selection (including Reddit Deep Dive operator), quality gates, cross-run learning, and validation anchors. Use when asked to research a business idea, analyze a market, write a business plan, evaluate startup ideas, or any non-technical research that benefits from iterative refinement.
 user_invocable: true
 ---
 
@@ -10,7 +10,7 @@ You are an autonomous business research agent running a structured multi-phase p
 Each phase has a clear objective, tools, and exit criteria. Within phases, you run
 autoresearch-style mutation-evaluation-selection cycles to iteratively improve output quality.
 
-**Core loop**: scope → research → synthesize → critique → decide (PROCEED / REFINE / PIVOT) → write → gate → deliver.
+**Core loop**: brief → social scan → scope → research blitz → iterate (research → critique → decide) → gate → deliver.
 
 ---
 
@@ -55,6 +55,109 @@ Research Brief:
   Seed: [filename or "none"]
 
 Proceed? (y/n)
+```
+
+---
+
+## PHASE 0.5: SOCIAL SIGNAL SCAN (Optional, Automated)
+
+**Objective**: Before any structured research begins, sweep the last 30 days of social platforms and prediction markets for fresh signals about the topic. This catches trends, complaints, and market movements that haven't made it into reports or articles yet.
+
+**Dependency**: Requires the `/last30days` skill to be installed (`~/.claude/skills/last30days/`). If not installed, skip this phase entirely and proceed to Phase 1.
+
+**Trigger**: Always run this phase unless the user explicitly says "skip social scan" or depth is `quick`.
+
+### Execution
+
+Invoke the `/last30days` skill with the research topic:
+
+```
+/last30days [topic]
+```
+
+This will search across up to 10 platforms (depending on configured API keys):
+- **Reddit** — community discussions, complaints, feature requests
+- **X/Twitter** — founder/VC commentary, product launches, hot takes
+- **Hacker News** — technical community sentiment, Show HN posts
+- **YouTube** — creator reviews, tutorials, product comparisons
+- **Polymarket** — prediction market odds (real money signals)
+- **TikTok/Instagram** — consumer sentiment (B2C topics)
+- **Bluesky** — tech-forward community discussions
+- **Web** — recent articles and blog posts
+
+### Processing the Results
+
+After `/last30days` returns its briefing:
+
+1. **Save raw output** to `.research/social_scan.md` (preserve for reference)
+2. **Extract structured signals** into categories:
+
+```markdown
+## Social Signal Extract
+
+### Prediction Market Signals (Polymarket)
+- [Market name]: [current odds] — [what this implies for our topic]
+- ...
+
+### Hot Community Pain Points (Reddit + HN)
+- "[quote or paraphrase]" — [platform], [engagement metric]
+- ...
+
+### Recent Product/Company Mentions (X + Web)
+- [Company/product]: [what's being said], [date]
+- ...
+
+### Consumer Sentiment (TikTok/Instagram/YouTube)
+- [Trend or theme]: [evidence]
+- ...
+
+### Emerging Trends (last 30 days)
+- [Trend]: [evidence from multiple platforms]
+- ...
+
+### Contrarian Signals
+- [Something the community disagrees on or where prediction markets diverge from social sentiment]
+- ...
+```
+
+3. **Feed signals into Phase 1**: The extracted signals become inputs to:
+   - **Phase 1b (Hypotheses)**: Generate hypotheses that test social signals (e.g., if Reddit complains about X pricing, hypothesis: "Users would pay less for a simpler alternative")
+   - **Phase 1e (Action catalog)**: Prioritize research actions that verify or refute the strongest signals
+   - **Phase 1g (Research blitz)**: Agents A-D get the social signal extract as additional context so they know what to search for
+
+### API Key Status Check
+
+Before running, check which sources are available:
+
+| Source | Env Variable | Free? |
+|--------|-------------|-------|
+| Reddit | `SCRAPECREATORS_API_KEY` | 100 free credits |
+| X/Twitter | `AUTH_TOKEN` + `CT0` | Free (your cookies) |
+| Hacker News | None needed | Free |
+| YouTube | None needed | Free |
+| Polymarket | None needed | Free |
+| TikTok | `SCRAPECREATORS_API_KEY` | Shared with Reddit |
+| Instagram | `SCRAPECREATORS_API_KEY` | Shared with Reddit |
+| Bluesky | `BSKY_HANDLE` + `BSKY_APP_PASSWORD` | Free |
+| Web Search | `BRAVE_API_KEY` or `PARALLEL_API_KEY` | Free tiers available |
+
+If no API keys are configured at all, skip this phase and note in the research brief:
+```
+Social Signal Scan: SKIPPED (no API keys configured)
+  → To enable: set SCRAPECREATORS_API_KEY in ~/.config/last30days/.env
+  → Free tier covers Reddit + TikTok + Instagram (100 credits)
+```
+
+### Print
+
+```
+Phase 0.5 complete: Social Signal Scan
+  Sources checked: N/10
+  Prediction market signals: N
+  Community pain points: N
+  Recent mentions: N
+  Emerging trends: N
+  Saved to: .research/social_scan.md
 ```
 
 ---
