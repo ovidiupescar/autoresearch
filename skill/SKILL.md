@@ -1,6 +1,6 @@
 ---
 name: business-research
-description: Autonomous multi-phase research pipeline for business ideas, market analysis, and business plans. Combines the autoresearch iterative improvement loop with a structured phased pipeline (scope → research → synthesize → evaluate → write). Features multi-perspective critique, PROCEED/REFINE/PIVOT decision logic, quality gates, cross-run learning, and validation anchors. Use when asked to research a business idea, analyze a market, write a business plan, evaluate startup ideas, or any non-technical research that benefits from iterative refinement.
+description: Autonomous multi-phase research pipeline for business ideas, market analysis, and business plans. Combines the autoresearch iterative improvement loop with a structured phased pipeline (scope → parallel research blitz → iterative improvement → synthesize → deliver). Features parallel Sonnet research agents for broad data gathering, multi-perspective critique, PROCEED/REFINE/PIVOT decision logic, Darwinian operator selection, quality gates, cross-run learning, and validation anchors. Use when asked to research a business idea, analyze a market, write a business plan, evaluate startup ideas, or any non-technical research that benefits from iterative refinement.
 user_invocable: true
 ---
 
@@ -283,8 +283,11 @@ Status of each initial hypothesis (supported / refuted / inconclusive / untested
   "operator_weights": {
     "Web Research": 1.0, "Deepen Section": 1.0, "Add Evidence": 1.0,
     "Challenge & Strengthen": 1.0, "Restructure": 1.0, "Synthesize": 1.0,
-    "Perspective Shift": 1.0, "Plateau Break": 1.0
+    "Perspective Shift": 1.0, "Plateau Break": 1.0, "Parallel Research Blitz": 1.0
   },
+  "parallel_blitz_count": 0,
+  "parallel_blitz_max": 3,
+  "total_agents_spawned": 0,
   "action_catalog": [],
   "next_cycle_hint": null,
   "lessons_loaded": [],
@@ -368,12 +371,93 @@ Evaluate the skeleton. Every section scores 0. Record as cycle 0:
 {"cycle": 0, "score": 0, "max_score": N, "phase": "scoping", "status": "baseline", "description": "Initial skeleton", "kept": true, "timestamp": "ISO-8601"}
 ```
 
-**Exit criteria for Phase 1**: Workspace created, hypotheses defined, criteria set, baseline recorded. Print:
+### 1g. Initial Research Blitz (Parallel Agents)
+
+**Objective**: Gather broad initial data across all sections simultaneously, DeerFlow-style, before the iterative loop begins. This dramatically raises the starting baseline so that iteration cycles focus on depth and quality rather than basic data gathering.
+
+Spawn **3-4 parallel research agents using the Agent tool with `model: "sonnet"`** (cheaper, faster — saves Opus for evaluation and synthesis). Each agent gets a focused research brief.
+
+**Agent decomposition strategy** — divide by SECTION CLUSTERS, not individual sections:
+
+For `idea_validation`:
+- **Agent A**: "Problem & Existing Solutions" — research the problem space, who has it, current solutions with pricing
+- **Agent B**: "Market & Customers" — market size data (TAM/SAM/SOM), target customer profiles, industry stats
+- **Agent C**: "Competition & Revenue" — named competitors with funding/pricing, revenue model benchmarks from comparable companies
+- **Agent D**: "Risks & Regulations" — industry risks, regulatory landscape, common failure modes for similar startups
+
+For `market_analysis`:
+- **Agent A**: "Market Size & Growth" — current market size with sources, CAGR, forecasts, methodology
+- **Agent B**: "Key Players & Structure" — named companies, revenue estimates, M&A activity, value chain
+- **Agent C**: "Customer Segments & Trends" — buyer segmentation, behavior shifts, technology drivers with dates
+- **Agent D**: "Barriers & Disruption" — entry barriers quantified, threats, emerging disruptors
+
+For `business_plan`:
+- **Agent A**: "Market & Competition" — market opportunity data, competitor landscape with pricing
+- **Agent B**: "Business Model Benchmarks" — unit economics from comparable companies, pricing models, CAC/LTV benchmarks
+- **Agent C**: "Go-to-Market Examples" — GTM strategies from similar successful companies, channel effectiveness data
+- **Agent D**: "Financial Benchmarks & Risks" — revenue ramp benchmarks, burn rate data, common risks with evidence
+
+For `competitive_analysis`:
+- **Agent A**: "Competitor Group 1" — deep profile on first 2-3 competitors (product, pricing, funding, reviews)
+- **Agent B**: "Competitor Group 2" — deep profile on next 2-3 competitors
+- **Agent C**: "Customer Sentiment" — G2/Capterra/Reddit reviews, common complaints, NPS data
+- **Agent D**: "Market Context & Gaps" — market size, trends, underserved segments, whitespace
+
+For `opportunity_scan`:
+- **Agent A**: "Macro Trends" — technology, regulatory, demographic shifts with evidence and dates
+- **Agent B**: "Existing Players & Gaps" — current market landscape, what's missing, underserved segments
+- **Agent C**: "Adjacent Markets" — related markets, cross-industry opportunities, emerging niches
+- **Agent D**: "Feasibility Data" — cost benchmarks, resource requirements, comparable startup trajectories
+
+**Each agent prompt MUST include**:
 ```
-Phase 1 complete: Scoping
+You are a research agent. Your task: [specific brief above].
+Topic: [topic]
+
+RULES:
+1. Use WebSearch and WebFetch to find SPECIFIC facts, numbers, named entities, and dates.
+2. For every claim, include the source: (Source: [description, date])
+3. Search at least 3-5 different queries. Try multiple angles.
+4. If you can't find data, say so explicitly: "No reliable data found for [X]"
+5. Return your findings as structured markdown with clear headings.
+6. Prefer recent data (2024-2026). Flag anything older than 2 years.
+7. Include exact numbers: revenue figures, growth rates, pricing tiers, user counts.
+8. Do NOT fabricate or hallucinate sources.
+
+Return ONLY your research findings. No opinions, no recommendations. Just sourced facts.
+```
+
+**Launch all agents in a single message** (parallel execution). Wait for all to complete.
+
+**After all agents return**, merge their findings into `.research/document.md`:
+- For each section in the document skeleton, integrate relevant facts from the agent that covered it
+- Add inline source citations
+- Do NOT try to make it polished — just get the raw data into the right sections
+- Copy the populated document to `.research/best_document.md`
+
+**Run baseline evaluation** on the now-populated document. This becomes the true cycle 0 score (will be much higher than the empty skeleton). Log:
+```json
+{"cycle": 0, "phase": "blitz", "score": X, "max_score": Y, "description": "Initial parallel research blitz (4 Sonnet agents)", "kept": true, "agents_spawned": 4, "timestamp": "ISO-8601"}
+```
+
+Update `state.json`: set `best_score` to the blitz score.
+
+Print:
+```
+Research Blitz complete:
+  Agents spawned: 4 (Sonnet)
+  Sections populated: N/M
+  Post-blitz score: X/Y (Z%)
+  Data gaps remaining: [list sections still mostly empty]
+```
+
+**Exit criteria for Phase 1**: Workspace created, hypotheses defined, criteria set, blitz completed, baseline recorded. Print:
+```
+Phase 1 complete: Scoping + Research Blitz
   Hypotheses: N defined
   Criteria: N defined (max score: M)
-  Entering Phase 2: Research & Improvement
+  Blitz score: X/Y (Z%)
+  Entering Phase 2: Iterative Improvement
 ```
 
 ---
@@ -403,10 +487,11 @@ Before choosing an action, compute per-section scores from the last evaluation. 
 Choose ONE mutation operator. Selection priority:
 1. If an uncompleted action catalog item matches a weakness → execute that catalog item
 2. If an untested hypothesis can be addressed → **Web Research** targeting that hypothesis
-3. If weakest section fails on Source Grounding → **Web Research** for that section
-4. If weakest section fails on Specificity → **Add Evidence**
-5. If `plateau_counter >= 5` → **Plateau Break** (see below)
-6. Otherwise → choose the operator with the **highest Darwinian weight** (see below)
+3. If **3+ sections** fail Source Grounding AND `parallel_blitz_count < parallel_blitz_max` → **Parallel Research Blitz** (covers multiple weak sections in one cycle)
+4. If weakest section fails on Source Grounding → **Web Research** for that section
+5. If weakest section fails on Specificity → **Add Evidence**
+6. If `plateau_counter >= 5` → **Plateau Break** (see below)
+7. Otherwise → choose the operator with the **highest Darwinian weight** (see below)
 
 Never repeat the same operator more than 2 consecutive times.
 
@@ -420,6 +505,7 @@ Never repeat the same operator more than 2 consecutive times.
 | **Synthesize** | Connect insights across sections. Ensure verdict follows from evidence. | Late cycles when sections are individually strong but disconnected |
 | **Perspective Shift** | Re-examine a section from a different stakeholder's viewpoint (investor, customer, competitor, regulator). | After 3+ cycles of same-perspective improvement |
 | **Plateau Break** | Complete rewrite of the weakest section from scratch, keeping only sourced facts. | `plateau_counter >= 5` |
+| **Parallel Research Blitz** | Spawn 2-3 Sonnet agents to research different angles of the same weak area simultaneously. Merge results. | Multiple sections weak on Source Grounding; or after REFINE decision |
 
 **Darwinian operator weights** (inspired by ATLAS trading system):
 
@@ -446,6 +532,15 @@ This creates natural selection: operators that consistently produce improvements
 After searching, use WebFetch on the most promising results to extract detailed data.
 
 Track every query in `state.json` → `"research_queries_used"` to avoid repeating searches.
+
+**For Parallel Research Blitz**: Spawn 2-3 agents using the Agent tool with `model: "sonnet"`. Each agent targets a different angle of the weak area. For example, if "Competitive Landscape" is weak:
+- Agent A: Research competitor pricing and feature comparison
+- Agent B: Research competitor funding, revenue, and market positioning
+- Agent C: Research user reviews and customer sentiment about competitors
+
+Use the same agent prompt template from Phase 1g (search rules, source requirements, no fabrication). Launch all agents in a single message for parallel execution. After all return, merge the best findings into the target section(s). This operator counts as ONE cycle but gathers 3x the data.
+
+Track in `state.json` → `"parallel_blitz_count"` (increment each time this operator is used). Limit to **3 uses per run** — parallel blitzes are expensive. Save them for when multiple sections are data-starved or after a REFINE decision.
 
 **For all operators**: Edit `.research/document.md` with improvements.
 
@@ -558,7 +653,7 @@ Every 5 cycles (at cycles 5, 10, 15, 20, 25), make an autonomous decision:
 
 **REFINE** if:
 - Score has plateaued (`plateau_counter >= 3`) but some hypotheses remain untested
-- Action: focus next 3 cycles exclusively on untested hypotheses via Web Research
+- Action: **Spawn a Parallel Research Blitz** (if budget remaining) with one Sonnet agent per untested hypothesis. Each agent gets: "Research evidence for or against: [hypothesis text]. Topic: [topic]. Find specific data that either supports or refutes this claim." After agents return, integrate findings and update hypothesis statuses. If no parallel blitz budget remains, focus next 3 cycles exclusively on untested hypotheses via sequential Web Research.
 
 **PIVOT** if:
 - Multiple hypotheses are `refuted` AND the core premise depends on them
