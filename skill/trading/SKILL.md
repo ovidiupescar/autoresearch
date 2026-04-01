@@ -287,7 +287,16 @@ Status of each hypothesis.
   "research_queries_used": [],
   "mutation_history": [],
   "lessons_loaded": [],
-  "decisions": []
+  "decisions": [],
+  "autoreason": {
+    "incumbent_wins": 0,
+    "score_flat_counter": 0,
+    "version_a_wins": 0,
+    "version_b_wins": 0,
+    "version_ab_wins": 0,
+    "total_strawman_flaws_found": 0,
+    "convergence_reached": false
+  }
 }
 ```
 
@@ -353,7 +362,7 @@ Pick 2-3 central sections as validation anchors. Evaluate skeleton (score 0). Re
 
 ## PHASE 2: RESEARCH LOOP
 
-Same structure as the business research skill with these trading-specific adaptations:
+Same structure as the business research skill — including the **full autoreason evaluation cycle** (strawman → adversarial rewrite → blind synthesis → blind judge panel) — with these trading-specific adaptations:
 
 ### Web Research queries for trading
 
@@ -377,11 +386,15 @@ When using the Perspective Shift operator, rotate through these viewpoints:
 - **Risk Manager**: What's the maximum drawdown? What's the position sizing given the risk?
 - **Macro Analyst**: How do interest rates, dollar, liquidity conditions affect this thesis?
 
-### 3-role critique for trading
+### Autoreason judge panel — trading-specific lenses
 
-1. **Analyst**: "What's the root cause of this section's weakness? Missing data or logical gap?"
-2. **Challenger**: "What would a short-seller attack here? What's the most likely wrong assumption?"
-3. **Coach**: "What single data point would most improve this section's credibility?"
+The blind judge panel (Step 5d from business research) uses these three lenses instead of the generic Investor/Operator/Skeptic:
+
+1. **Judge 1 (Long-side PM)**: Which version would you allocate capital to? Is the risk/reward clearly asymmetric?
+2. **Judge 2 (Short-seller)**: Which version has the fewest exploitable assumptions? What would you short against this thesis?
+3. **Judge 3 (Risk Manager)**: Which version has the most honest risk framework? Are position sizing and exit criteria concrete?
+
+This ensures the adversarial pressure is calibrated for investment research — a short-seller strawman is more useful than a generic "skeptic" for catching financial reasoning errors.
 
 ### PROCEED / REFINE / PIVOT
 
@@ -390,13 +403,21 @@ Same decision logic as business research, with one addition:
 
 ### Darwinian operator weights
 
-Same system: KEEP → weight × 1.05, DISCARD → weight × 0.95, range [0.3, 2.5].
+Same system: mutation survives autoreason → weight × 1.05, mutation loses → weight × 0.95, range [0.3, 2.5].
 
 ---
 
 ## PHASE 3: SYNTHESIS & POLISH
 
 Same as business research, plus:
+
+### 3a-pre. Autoreason convergence check
+
+If Phase 2 ended via autoreason convergence (incumbent won 3+ consecutive rounds), the document has been stress-tested against adversarial rewrites and blind judges. Note this in the synthesis:
+```
+Convergence status: CONVERGED after N cycles — document survived K consecutive
+adversarial challenges. Version breakdown: A won X, B won Y, AB won Z.
+```
 
 ### 3a. Conviction calibration
 

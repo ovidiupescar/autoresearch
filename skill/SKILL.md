@@ -409,7 +409,16 @@ Status of each initial hypothesis (supported / refuted / inconclusive / untested
   "action_catalog": [],
   "next_cycle_hint": null,
   "lessons_loaded": [],
-  "decisions": []
+  "decisions": [],
+  "autoreason": {
+    "incumbent_wins": 0,
+    "score_flat_counter": 0,
+    "version_a_wins": 0,
+    "version_b_wins": 0,
+    "version_ab_wins": 0,
+    "total_strawman_flaws_found": 0,
+    "convergence_reached": false
+  }
 }
 ```
 
@@ -686,15 +695,15 @@ Never repeat the same operator more than 2 consecutive times.
 
 **Darwinian operator weights** (inspired by ATLAS trading system):
 
-Each operator starts with weight 1.0. After each cycle:
-- If KEEP: operator weight × 1.05
-- If DISCARD: operator weight × 0.95
+Each operator starts with weight 1.0. After each autoreason cycle:
+- If the operator's mutation survived (Version A or AB won): operator weight × 1.05
+- If the operator's mutation was discarded (incumbent or Version B won over A): operator weight × 0.95
 - Minimum weight: 0.3 (never fully eliminated)
 - Maximum weight: 2.5
 
-When selecting by weight (priority rule 6), choose the highest-weight operator that hasn't been used in the last 2 cycles. Store weights in `state.json` → `"operator_weights"`.
+When selecting by weight (priority rule 7), choose the highest-weight operator that hasn't been used in the last 2 cycles. Store weights in `state.json` → `"operator_weights"`.
 
-This creates natural selection: operators that consistently produce improvements gain influence; those that don't fade toward minimum.
+This creates natural selection: operators that consistently survive adversarial challenge gain influence; those that don't fade toward minimum.
 
 #### Step 4: Execute the research action
 
@@ -738,44 +747,150 @@ Track in `state.json` → `"parallel_blitz_count"` (increment each time this ope
 - If web search returns nothing useful, document the gap: "Searched for [X], no reliable data found. This remains an assumption."
 - Update hypothesis status when evidence supports or refutes one
 
-#### Step 5: Multi-perspective evaluation
+#### Step 5: Autoreason Evaluation Cycle
 
-Score every section against every criterion. For each (section, criterion) pair:
-- Read ONLY the section text
-- Ask: does this section pass this criterion? Yes = 1, No = 0
-- Be **STRICT**: "If it is not clearly passing, it fails"
-- Vague claims with no specifics → fail Specificity
-- Claims without named sources → fail Source Grounding
-- Numbers without dates or methodology → fail Specificity
+**Why not self-evaluate?** LLMs are sycophantic when improving their own work, overly critical when asked to find flaws, and overly compromising when merging perspectives. The output ends up shaped by the prompt, not by what's actually better. Autoreason fixes this by separating every role into **isolated agents with no shared context** — the same way science uses peer review where math can use proofs.
 
-Then run a **3-role critique** on the 2 lowest-scoring sections (inspired by Autocontext's multi-role pipeline):
+The mutation from Step 4 produced a new `document.md`. This is **Version A**. The current `best_document.md` is the **Incumbent**. Now run the autoreason cycle:
 
-1. **Analyst**: "What happened? Why did this section score low? What's the root cause — missing data, vague claims, or logical gaps?"
-2. **Challenger**: "What would an investor/buyer poke holes in? What claim here is most likely wrong or misleading?"
-3. **Coach**: "What's the single highest-impact fix for this section in the next cycle? Be specific."
+**5a. Strawman Attack** — Spawn a fresh Sonnet agent with NO context about how Version A was written. It sees only the document and a mandate to destroy it.
 
-If the Challenger identifies a sourced claim that is likely wrong or misleading, subtract 1 point. Store the Coach's suggestion in `state.json` → `"next_cycle_hint"` to guide the next mutation.
+Agent prompt (via Agent tool, `model: "sonnet"`):
+```
+You are a ruthless business analyst. Your ONLY job is to attack this document.
+Find every weak claim, unsupported assertion, logical gap, missing data, and
+internal contradiction. Be specific — quote the exact text that fails and
+explain WHY it fails. Do not suggest fixes. Only attack.
 
-Compute: `total_score = sum_of_passes - challenger_deductions`
+DOCUMENT:
+[contents of .research/document.md]
 
-Also compute `section_scores` dict and `criterion_scores` dict.
+EVALUATION CRITERIA (use these as your attack vectors):
+[list all criteria from state.json]
 
-#### Step 6: KEEP or DISCARD
+OUTPUT FORMAT:
+## Strawman Critique
+### Fatal Flaws (claims that are wrong or unsupported)
+- ...
+### Weak Points (claims that could be stronger)
+- ...
+### Missing (what the document should address but doesn't)
+- ...
+### Internal Contradictions
+- ...
+```
 
-Compare `new_score` against `best_score`:
+**5b. Adversarial Rewrite** — Spawn a SEPARATE Sonnet agent that has never seen Version A's drafting process. It receives only: the original research task, Version A, and the strawman critique. It produces **Version B** — a rewrite that addresses the critique.
 
-- **new_score > best_score + 1** (confidence margin): **KEEP**
-  - Copy `document.md` to `best_document.md`
-  - Update `best_score`
-  - Reset `plateau_counter` to 0
-  - Increment `kept_count`
+Agent prompt (`model: "sonnet"`):
+```
+You are a business research writer. You have been given:
+1. A research task
+2. A draft document (Version A)
+3. A critique of that draft
 
-- **new_score == best_score or best_score < new_score <= best_score + 1**: **KEEP only if new version is shorter** (simplicity wins ties, per autoresearch convention). Otherwise DISCARD.
+Your job: produce Version B that addresses the critique's strongest points
+while preserving Version A's best content. You are NOT fixing Version A —
+you are writing a competing alternative that is stronger where A is weak.
 
-- **new_score < best_score**: **DISCARD**
-  - Copy `best_document.md` back to `document.md` (revert)
-  - Increment `plateau_counter`
-  - Increment `discarded_count`
+RESEARCH TASK: [topic + research_type from state.json]
+VERSION A: [contents of .research/document.md]
+CRITIQUE: [strawman output from 5a]
+
+RULES:
+- Keep the same section structure (do not add or remove sections)
+- Every change must address a specific point from the critique
+- Do not weaken strong parts of Version A to fix weak parts
+- If the critique is wrong about something, keep Version A's content for that point
+- Preserve all source citations from Version A
+```
+
+**5c. Blind Synthesis** — Spawn a THIRD Sonnet agent that has NO history with either drafting process. It sees both versions as **equal, unlabeled inputs** and produces **Version AB** — the strongest possible combination.
+
+Agent prompt (`model: "sonnet"`):
+```
+You are an editor. You have two versions of a business research document.
+Neither is "better" by default — they were written independently.
+Your job: produce the strongest possible version by taking the best parts
+of each. Where they conflict, keep whichever has stronger evidence.
+
+VERSION X: [Version A — label randomized]
+VERSION Y: [Version B — label randomized]
+
+RULES:
+- Keep the same section structure
+- For each section, pick the stronger version or merge the best of both
+- Stronger = more specific facts, better sourced, more internally consistent
+- Do NOT add new content — only select and merge from X and Y
+- Preserve all source citations
+```
+
+**Important**: Randomize which version is labeled X vs Y to prevent position bias.
+
+**5d. Blind Judge Panel** — Spawn a final Sonnet agent as a **3-judge panel**. It has NEVER seen any of the drafting or critique process. It receives all three versions (A, B, AB) with **randomized labels** (P, Q, R) and picks the winner.
+
+Agent prompt (`model: "sonnet"`):
+```
+You are a panel of three independent judges evaluating business research quality.
+You have three versions of the same research document. Pick the BEST one.
+
+VERSION P: [one of A/B/AB — randomly assigned]
+VERSION Q: [one of A/B/AB — randomly assigned]
+VERSION R: [one of A/B/AB — randomly assigned]
+
+EVALUATION CRITERIA (score each version against ALL criteria):
+[list all criteria from state.json]
+
+For each criterion, for each version: PASS (1) or FAIL (0). Be STRICT.
+
+JUDGE 1 (Investor lens): Which version would you fund a company based on?
+JUDGE 2 (Operator lens): Which version could you execute a business from?
+JUDGE 3 (Skeptic lens): Which version has the fewest unsupported claims?
+
+OUTPUT FORMAT:
+## Scores
+| Criterion | Version P | Version Q | Version R |
+|-----------|-----------|-----------|-----------|
+| ...       | 0/1       | 0/1       | 0/1       |
+
+## Judge Verdicts
+- Judge 1 (Investor): [P/Q/R] because [1 sentence]
+- Judge 2 (Operator): [P/Q/R] because [1 sentence]
+- Judge 3 (Skeptic): [P/Q/R] because [1 sentence]
+
+## Winner: [P/Q/R] (majority vote)
+## Runner-up: [P/Q/R]
+
+## Weakest section in winner: [section name] — [why, 1 sentence]
+```
+
+**Launch 5a first, then 5b (depends on 5a), then 5c (depends on 5b), then 5d (depends on 5c).** Steps 5a and the rest are sequential because each depends on the previous output.
+
+**5e. Apply Verdict**
+
+De-randomize the labels to determine which original version won (A, B, or AB).
+
+- **If Incumbent (best_document.md) was NOT one of the candidates**: Compare winner against Incumbent using the judge scores. If winner scores higher → KEEP. If not → DISCARD.
+- **If A wins** (the mutation from Step 4): **KEEP** — copy `document.md` to `best_document.md`
+- **If B wins** (adversarial rewrite): **KEEP** — write Version B to both `document.md` and `best_document.md`
+- **If AB wins** (synthesis): **KEEP** — write Version AB to both `document.md` and `best_document.md`
+
+Update scores from the judge panel. The winner's total criteria score becomes the new `best_score`.
+
+Store the judge's "weakest section" note in `state.json` → `"next_cycle_hint"`.
+
+**Convergence tracking**: Record whether the Incumbent was among the candidates and whether it won. Track in `state.json` → `"incumbent_wins"` (consecutive count).
+
+#### Step 6: Convergence Check (replaces simple KEEP/DISCARD)
+
+The autoreason cycle naturally detects when the document has stopped improving:
+
+- **If the judge panel picks the Incumbent (unchanged version) as winner**: increment `incumbent_wins`
+- **If any new version wins**: reset `incumbent_wins` to 0
+
+**Convergence = `incumbent_wins >= 3`** — the judges have consistently picked the existing document over all adversarial rewrites and syntheses for 3 consecutive cycles. This means the document is robust against attack and no further improvements are being generated. **Stop the loop and move to Phase 3.**
+
+This replaces the old score-based KEEP/DISCARD and plateau detection. The judges ARE the fitness function — no self-grading, no arbitrary score thresholds.
 
 #### Step 7: Update hypothesis status
 
@@ -792,17 +907,22 @@ Append to `.research/results.jsonl`:
 {
   "cycle": N,
   "phase": "research",
-  "score": X,
-  "max_score": Y,
-  "score_pct": "Z%",
-  "best_score": B,
-  "status": "keep|discard",
   "operator": "which operator",
   "target_section": "which section was targeted",
   "description": "1-line summary of what was tried",
-  "section_scores": {"Section": score},
-  "criterion_scores": {"Criterion": score},
-  "red_team_deductions": N,
+  "autoreason": {
+    "strawman_flaws": N,
+    "winner": "A|B|AB",
+    "winner_score": X,
+    "runner_up_score": Y,
+    "judge_verdicts": ["P", "Q", "R"],
+    "incumbent_won": true|false,
+    "weakest_section": "section name"
+  },
+  "best_score": B,
+  "max_score": M,
+  "score_pct": "Z%",
+  "incumbent_wins_streak": N,
   "hypotheses_updated": ["H1: untested->supported"],
   "web_queries": ["queries used"],
   "timestamp": "ISO-8601"
@@ -811,19 +931,23 @@ Append to `.research/results.jsonl`:
 
 Update `state.json`:
 - `scores_history`, `mutation_history`, `operator_stats`
+- `incumbent_wins` streak counter
 - Track per-operator: `{"Web Research": {"attempts": 5, "kept": 3, "keep_rate": 0.6}}`
 
 #### Step 9: Print cycle summary
 
 ```
-Cycle N/M: [operator] → [section] — [description] → score X/Y [KEEP/DISCARD] | best: B/Y (Z%)
+Cycle N: [operator] → [section] — [description]
+  Autoreason: Strawman found N flaws → Version B produced → AB synthesized
+  Judge verdict: [A/B/AB] wins (Investor:[x] Operator:[x] Skeptic:[x])
+  Score: X/M (Z%) | Incumbent streak: N/3
   Hypotheses: 2/5 tested (1 supported, 1 refuted)
 ```
 
 #### Step 10: Criteria health check (at cycle 10)
 
 If `cycle == 10`, check criteria health:
-- Criteria that pass >90% of sections → flag as "too easy" (consider tightening)
+- Criteria that pass >90% of sections in judge scoring → flag as "too easy" (consider tightening)
 - Criteria that pass <10% of sections → flag as "too hard" (consider loosening)
 - Log to `state.json` → `"criteria_health"`. Do NOT change criteria mid-run, just note for awareness.
 
@@ -861,26 +985,32 @@ Reason: [reason]
 Continue? (y/n/feedback)
 ```
 
-#### Step 12: Plateau handling
+#### Step 12: Stagnation handling
 
-- `plateau_counter >= 4`: Switch to unused operator
-- `plateau_counter >= 6`: Use Plateau Break (full rewrite of weakest section)
-- `plateau_counter >= 8`: Use Perspective Shift on strongest section
-- `plateau_counter >= 10`: Early stop — move to Phase 3
+If the incumbent keeps losing but the score isn't improving (new versions win but scores stay flat):
+- Track `score_flat_counter`: increment when winner score == previous winner score (within 1 point)
+- `score_flat_counter >= 3`: Switch to a different operator — the current approach is producing lateral moves, not improvements
+- `score_flat_counter >= 5`: Use Plateau Break (full rewrite of weakest section from scratch)
+- `score_flat_counter >= 7`: Use Perspective Shift on the judge panel's identified "weakest section"
 
-#### Step 13: Early stopping
+#### Step 13: Stopping conditions
 
-Stop the research loop if:
-- Score >= 85% of `max_score` for 2 consecutive KEEP cycles
-- `plateau_counter >= 10`
-- All hypotheses are tested AND score >= 70% of `max_score`
+Stop the research loop and move to Phase 3 if ANY of these are met:
+
+1. **Convergence**: `incumbent_wins >= 3` — judges consistently pick the existing document over adversarial rewrites. The document is robust against attack. **This is the primary stopping signal.**
+
+2. **Cycle budget exhausted**: `cycle >= target_cycles` — hard cap based on user's depth setting.
+
+3. **All hypotheses resolved + high quality**: All hypotheses tested AND winner score >= 70% of `max_score` for 2 consecutive cycles.
 
 Print:
 ```
 Phase 2 complete: Research & Improvement
-  Cycles: N (K kept, D discarded, P pivots)
-  Keep rate: X%
-  Score: start 0/M → final F/M (Z%)
+  Cycles: N total
+  Convergence: [Yes — incumbent won N consecutive autoreason cycles | No — budget exhausted]
+  Final score: F/M (Z%)
+  Autoreason stats: N strawman attacks, N adversarial rewrites, N syntheses
+  Version wins: A won X times, B won Y times, AB won Z times
   Hypotheses: A supported, B refuted, C inconclusive, D untested
   Entering Phase 3: Synthesis & Polish
 ```
@@ -939,10 +1069,11 @@ Phase 3 complete: Synthesis & Polish
 ═══════════════════════════════════════
 Topic: [topic]
 Type: [research_type]
-Cycles: N total (K kept, D discarded)
+Cycles: N total
+Convergence: [Yes/No] (incumbent won K consecutive autoreason rounds)
 Pivots: P | Refines: R
-Keep rate: X%
 Score: 0/M (0%) → F/M (Z%)
+Autoreason: A won X | B won Y | AB won Z | Strawman flaws found: N
 
 Hypotheses:
   ✓ [supported hypothesis text]
@@ -1000,7 +1131,7 @@ Based on weakest sections, untested hypotheses, and flagged assumptions, suggest
 
 1. **One mutation per cycle.** Small, testable changes. Don't rewrite everything at once.
 2. **Always work from best_document.md.** Never iterate on a failed attempt.
-3. **Strict grading.** Generous self-grading defeats the optimization loop. When in doubt, fail it.
+3. **Never self-grade.** All evaluation goes through the autoreason cycle: strawman → adversarial rewrite → blind synthesis → blind judge panel. The model that wrote the content NEVER evaluates it.
 4. **Log everything.** Every cycle gets a `results.jsonl` entry.
 5. **Web research is the primary value-add.** The user can write vague text. Your job is to find specific facts, numbers, and evidence.
 6. **Cite sources with dates.** Every fact from web research gets an inline citation. Uncited claims fail Source Grounding.
@@ -1012,5 +1143,5 @@ Based on weakest sections, untested hypotheses, and flagged assumptions, suggest
 12. **Lessons persist.** Always write lessons at the end. Always read lessons at the start.
 13. **PIVOT is not failure.** Discovering that an idea doesn't work IS a valuable research output. Document WHY it doesn't work.
 14. **Never fabricate sources.** If you can't find data, say so. "No reliable data found" is better than a made-up statistic.
-15. **Confidence margin on KEEP.** New version must beat best by >1 point to be kept (except on ties where shorter wins). This prevents noise-driven false improvements.
+15. **Blind judges are the fitness function.** No score thresholds or confidence margins. The judge panel's majority vote determines the winner. Randomize labels every cycle to prevent position bias.
 16. **Negative results are first-class outputs.** A well-documented refuted hypothesis is MORE valuable than a vaguely supported one. "We investigated X and it doesn't work because Y" saves real time and money. The "What We Ruled Out" section should be one of the strongest in the document by the end.
